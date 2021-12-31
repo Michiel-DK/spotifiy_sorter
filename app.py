@@ -3,10 +3,11 @@ import streamlit as st
 import numpy as np
 import re
 import string
-from sklearn.neighbors import KNeighborsRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+import plotly.figure_factory as ff
+import plotly.express as px
 
 @st.cache
 def get_data():
@@ -25,6 +26,7 @@ search_artist = st.sidebar.text_input('Enter an artist')
 harmonic_button = st.sidebar.checkbox('Harmonic?')
 percentage_button = st.sidebar.checkbox('Select BPM %')
 neighbours_button = st.sidebar.checkbox('Neighbours?')
+all_neighbours = st.sidebar.checkbox('check n')
 
 
 def clean(word):
@@ -112,6 +114,30 @@ def neighbors(df, song):
     #print(df.iloc[song.index[0]])
     return df[df['cluster'] == df.iloc[new_song.index[0]]['cluster']]
 
+def neighbors2(df):
+    # change variables
+    X = df.drop(columns=['name', 'artist', 'key_s', 'mode_s', 'full_key', 'key_piano', 'key_camelot', 'key_open','key_scale_degree','clean_name', 'clean_artist', 'tempo'],axis=1)
+    #scale
+    minmax_scaler = MinMaxScaler()
+    X_scaled = minmax_scaler.fit_transform(X)
+    #PCA
+    pca = PCA(n_components=6)
+    pca.fit(X_scaled)
+    pc = pd.DataFrame(pca.components_).T.iloc[:,:6]
+    #Create PCA DF
+    new_df = np.dot(X_scaled,pc)
+    new_df = pd.DataFrame(new_df)
+    #Kmeans
+    kmeans = KMeans(n_clusters = 6)
+    kmeans.fit(new_df)
+    #Add cluster to new df and return filtered df
+    df['cluster'] = kmeans.labels_
+    df = df.reset_index()
+    #print(df.shape)
+    #print(song.index[0])
+    #print(df.iloc[song.index[0]])
+    return df[['name', 'artist', 'tempo', 'key_camelot','cluster']]
+
 # Search function
 if search_word and not search_artist and not harmonic_button and not percentage_button and not neighbours_button:
     matched = df['clean_name'].str.contains(clean(search_word), na=False)
@@ -158,6 +184,11 @@ elif search_word and search_artist and harmonic_button and percentage_button and
     new_df = neighbors(filtered_bpm, song)
     st.table(new_df[filter_list])
     
+elif all_neighbours:
+    st.dataframe(neighbors2(df))
+    #st.plotly_chart(ff.create_scatterplotmatrix(df), use_container_width=True)
+    
+    
 else:
-    st.table(df[filter_list])
+    st.dataframe(df[filter_list])
 
